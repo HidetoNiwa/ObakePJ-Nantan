@@ -40,6 +40,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 UART_HandleTypeDef huart2;
 
@@ -50,6 +51,7 @@ UART_HandleTypeDef huart2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
@@ -57,6 +59,7 @@ static void MX_ADC1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+//UART
 void uart_putc(uint8_t c) {
 	char buf[1];
 	buf[0] = c;
@@ -67,9 +70,23 @@ void uart_puts(char *str) {
 		uart_putc(*str++);
 	}
 }
+
+//LED Toggle
 void led_toggle(void) {
 	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
 }
+
+//AnalogIn
+bool adc_read(__IO uint16_t data[3]) {
+	if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*) data, 3) != HAL_OK) {
+		return false;
+	}
+	if (HAL_ADC_Stop_DMA(&hadc1)) {
+		return false;
+	}
+	return true;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -78,7 +95,7 @@ void led_toggle(void) {
  */
 int main(void) {
 	/* USER CODE BEGIN 1 */
-	__IO uint32_t ad;
+	__IO uint16_t data[3];
 	/* USER CODE END 1 */
 
 	/* MCU Configuration--------------------------------------------------------*/
@@ -99,13 +116,19 @@ int main(void) {
 
 	/* Initialize all configured peripherals */
 	MX_GPIO_Init();
+	MX_DMA_Init();
 	MX_USART2_UART_Init();
 	MX_ADC1_Init();
 	/* USER CODE BEGIN 2 */
 
-	char buf[100] = "a\r\n";
+	char buf[100] = "Hello\r\n";
 	HAL_UART_Transmit(&huart2, (uint8_t*) buf, sizeof(buf), 0xFFFF);
-	int data = 0;
+
+	// Start ADC1
+	/*
+	 if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*) data, 3) != HAL_OK) {
+	 Error_Handler();
+	 }*/
 
 	/* USER CODE END 2 */
 
@@ -115,21 +138,21 @@ int main(void) {
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
-		HAL_ADC_Start(&hadc1);
-		if (HAL_ADC_PollForConversion(&hadc1, 1000) == HAL_OK) {
-			ad = HAL_ADC_GetValue(&hadc1);
-			data = ad;
+
+		if (adc_read(&data) != true) {
+			Error_Handler();
 		}
 
 		//Serial Debug
-		sprintf(buf, "hoge:%d\r\n", data);
+		for (uint8_t i = 0; i < 3; i++) {
+			sprintf(buf, "%d\t", data[i]);
+			uart_puts(buf);
+		}
 
+		sprintf(buf, "\r\n");
 		uart_puts(buf);
 
-		free(buf);
-		if (data % 10 == 0) {
-			led_toggle();
-		}
+		//HAL_ADC_Stop(&hadc1);
 		HAL_Delay(10);
 	}
 	/* USER CODE END 3 */
@@ -142,7 +165,6 @@ int main(void) {
 void SystemClock_Config(void) {
 	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
 	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
-	RCC_PeriphCLKInitTypeDef PeriphClkInit = { 0 };
 
 	/** Initializes the RCC Oscillators according to the specified parameters
 	 * in the RCC_OscInitTypeDef structure.
@@ -168,11 +190,6 @@ void SystemClock_Config(void) {
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
 		Error_Handler();
 	}
-	PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC12;
-	PeriphClkInit.Adc12ClockSelection = RCC_ADC12PLLCLK_DIV1;
-	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
-		Error_Handler();
-	}
 }
 
 /**
@@ -195,17 +212,17 @@ static void MX_ADC1_Init(void) {
 	/** Common config
 	 */
 	hadc1.Instance = ADC1;
-	hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+	hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV1;
 	hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-	hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
-	hadc1.Init.ContinuousConvMode = DISABLE;
+	hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+	hadc1.Init.ContinuousConvMode = ENABLE;
 	hadc1.Init.DiscontinuousConvMode = DISABLE;
 	hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
 	hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
 	hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-	hadc1.Init.NbrOfConversion = 1;
-	hadc1.Init.DMAContinuousRequests = DISABLE;
-	hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+	hadc1.Init.NbrOfConversion = 3;
+	hadc1.Init.DMAContinuousRequests = ENABLE;
+	hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
 	hadc1.Init.LowPowerAutoWait = DISABLE;
 	hadc1.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
 	if (HAL_ADC_Init(&hadc1) != HAL_OK) {
@@ -225,6 +242,21 @@ static void MX_ADC1_Init(void) {
 	sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
 	sConfig.OffsetNumber = ADC_OFFSET_NONE;
 	sConfig.Offset = 0;
+	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
+		Error_Handler();
+	}
+	/** Configure Regular Channel
+	 */
+	sConfig.Channel = ADC_CHANNEL_2;
+	sConfig.Rank = ADC_REGULAR_RANK_2;
+	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
+		Error_Handler();
+	}
+	/** Configure Regular Channel
+	 */
+	sConfig.Channel = ADC_CHANNEL_4;
+	sConfig.Rank = ADC_REGULAR_RANK_3;
+	sConfig.SamplingTime = ADC_SAMPLETIME_7CYCLES_5;
 	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
 		Error_Handler();
 	}
@@ -257,7 +289,8 @@ static void MX_USART2_UART_Init(void) {
 	huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
 	huart2.Init.OverSampling = UART_OVERSAMPLING_16;
 	huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-	huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_DMADISABLEONERROR_INIT;
+	huart2.AdvancedInit.AdvFeatureInit =
+	UART_ADVFEATURE_DMADISABLEONERROR_INIT;
 	huart2.AdvancedInit.DMADisableonRxError =
 	UART_ADVFEATURE_DMA_DISABLEONRXERROR;
 	if (HAL_UART_Init(&huart2) != HAL_OK) {
@@ -266,6 +299,21 @@ static void MX_USART2_UART_Init(void) {
 	/* USER CODE BEGIN USART2_Init 2 */
 
 	/* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+ * Enable DMA controller clock
+ */
+static void MX_DMA_Init(void) {
+
+	/* DMA controller clock enable */
+	__HAL_RCC_DMA1_CLK_ENABLE();
+
+	/* DMA interrupt init */
+	/* DMA1_Channel1_IRQn interrupt configuration */
+	HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 
@@ -284,14 +332,6 @@ static void MX_GPIO_Init(void) {
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
-
-	/*Configure GPIO pin : PA11 */
-	GPIO_InitStruct.Pin = GPIO_PIN_11;
-	GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-	GPIO_InitStruct.Alternate = GPIO_AF11_TIM1;
-	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 	/*Configure GPIO pin : PB3 */
 	GPIO_InitStruct.Pin = GPIO_PIN_3;
