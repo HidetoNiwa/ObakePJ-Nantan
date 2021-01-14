@@ -98,7 +98,7 @@ bool adc_read(__IO uint16_t data[3]) {
 
 //PWM
 
-//-999<power<999 版set_power
+//-999<power<999 �?set_power
 void set_Power(int16_t power) {
 	uint16_t PWM_A, PWM_B;
 	if (power > 999) {
@@ -118,7 +118,7 @@ void set_Power(int16_t power) {
 	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, PWM_B);
 }
 
-//-1<power<1 版set_power
+//-1<power<1 �?set_power
 void set_Power(float power) {
 	uint16_t PWM_A, PWM_B;
 	float val_A, val_B;
@@ -194,13 +194,14 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 
 void HCSR04_get() {
 	//float distance;
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
 	delay_us(2);
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
 	delay_us(10);
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_SET);
 
-	__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_CC3);
+	//TODO:TIM1 to TIM2 change
+	//__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_CC3);
 
 	HAL_Delay(40);
 }
@@ -278,6 +279,9 @@ int main(void) {
 	float kp = 0.f;
 	float max_length = 0.f;
 
+	HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+	int32_t enc_counter;
+
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -299,6 +303,9 @@ int main(void) {
 		kp = set_kp_speed(data[1]);
 		max_length = set_max_length(data[2]);
 
+		//getEnc
+		enc_counter = TIM1->CNT;
+
 		//PWM Out
 		if (Distance > reaction_distance) {
 			set_Power(power);
@@ -317,6 +324,8 @@ int main(void) {
 			sprintf(buf, "%d\t", data[i]);
 			uart_puts(buf);
 		}
+		sprintf(buf, "enc:%ld\t", enc_counter);
+		uart_puts(buf);
 		sprintf(buf, "rD:%f\t", reaction_distance);
 		uart_puts(buf);
 		sprintf(buf, "kp:%f\t", kp);
@@ -461,6 +470,7 @@ static void MX_TIM1_Init(void) {
 
 	/* USER CODE END TIM1_Init 0 */
 
+	TIM_Encoder_InitTypeDef sConfig = { 0 };
 	TIM_MasterConfigTypeDef sMasterConfig = { 0 };
 	TIM_IC_InitTypeDef sConfigIC = { 0 };
 
@@ -475,6 +485,18 @@ static void MX_TIM1_Init(void) {
 	htim1.Init.RepetitionCounter = 0;
 	htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
 	if (HAL_TIM_IC_Init(&htim1) != HAL_OK) {
+		Error_Handler();
+	}
+	sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
+	sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
+	sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+	sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+	sConfig.IC1Filter = 0;
+	sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+	sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+	sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+	sConfig.IC2Filter = 0;
+	if (HAL_TIM_Encoder_Init(&htim1, &sConfig) != HAL_OK) {
 		Error_Handler();
 	}
 	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
@@ -657,13 +679,13 @@ static void MX_GPIO_Init(void) {
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 
 	/*Configure GPIO pin Output Level */
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
 
-	/*Configure GPIO pin : PA9 */
-	GPIO_InitStruct.Pin = GPIO_PIN_9;
+	/*Configure GPIO pin : PA11 */
+	GPIO_InitStruct.Pin = GPIO_PIN_11;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

@@ -12,8 +12,10 @@
 | PA1    | ADC1_2      |              |
 | PA2    | UART2_TX    | USB UART     |
 | PA3    | ADC1_4      |              |
-| PA9    | GPIO_Output | HCSR-04 Trig |
+| PA8    | TIM1_CH1    | Encoder_A    |
+| PA9    | TIM1_CH2    | Encoder_B    |
 | PA10   | TIM1_CH3    | HCSR-04 Sig  |
+| PA11   | GPIO_Output | HCSR-04 Trig |
 | PA13   | SWDIO       |              |
 | PA14   | SWCLK       |              |
 | PA15   | UART2_RX    | USB UART     |
@@ -66,4 +68,7 @@ PWM周波数->64MHz/((0+1)*999+1)=64kHz
 超音波センサ
 
 ### 参考
+
 [HC-SR04 Ultrasonic sensor and STM32](https://controllerstech.com/hc-sr04-ultrasonic-sensor-and-stm32/)
+
+## Encoder
